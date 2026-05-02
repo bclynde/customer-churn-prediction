@@ -91,26 +91,40 @@ def plot_numeric_distributions(df):
 
 
 def plot_correlation_heatmap(df):
-    numeric_df = df.select_dtypes(include="number")
-    correlation_matrix = numeric_df.corr()
+    # Encode all features (including categorical) as numeric so the heatmap covers every column
+    corr_df = df.copy()
+    for col in corr_df.columns:
+        # If column is object or categorical or boolean, convert to category codes
+        if corr_df[col].dtype == object or pd.api.types.is_categorical_dtype(corr_df[col]) or corr_df[col].dtype == bool:
+            corr_df[col] = pd.Categorical(corr_df[col]).codes
+        else:
+            # Ensure numeric-like strings are converted to numeric
+            corr_df[col] = pd.to_numeric(corr_df[col], errors="coerce")
+
+    correlation_matrix = corr_df.corr()
 
     if correlation_matrix.empty:
         return
 
-    fig, ax = plt.subplots(figsize=(8, 6))
+    cols = correlation_matrix.columns
+    # scale figure size to number of features so labels remain readable
+    fig_width = max(10, len(cols) * 0.5)
+    fig_height = max(8, len(cols) * 0.5)
+    fig, ax = plt.subplots(figsize=(fig_width, fig_height))
     heatmap = ax.imshow(correlation_matrix, cmap="coolwarm", vmin=-1, vmax=1)
 
-    ax.set_xticks(range(len(correlation_matrix.columns)))
-    ax.set_yticks(range(len(correlation_matrix.columns)))
-    ax.set_xticklabels(correlation_matrix.columns, rotation=45, ha="right")
-    ax.set_yticklabels(correlation_matrix.columns)
-    ax.set_title("Numeric Feature Correlations")
+    ax.set_xticks(range(len(cols)))
+    ax.set_yticks(range(len(cols)))
+    ax.set_xticklabels(cols, rotation=90, ha="center", fontsize=8)
+    ax.set_yticklabels(cols, fontsize=8)
+    ax.set_title("Feature Correlations (all features encoded)")
 
-    for i in range(len(correlation_matrix.columns)):
-        for j in range(len(correlation_matrix.columns)):
-            ax.text(j, i, f"{correlation_matrix.iloc[i, j]:.2f}", ha="center", va="center", color="black")
+    # annotate correlation values
+    for i in range(len(cols)):
+        for j in range(len(cols)):
+            ax.text(j, i, f"{correlation_matrix.iloc[i, j]:.2f}", ha="center", va="center", color="black", fontsize=6)
 
-    fig.colorbar(heatmap, ax=ax, shrink=0.8)
+    fig.colorbar(heatmap, ax=ax, shrink=0.7)
     fig.tight_layout()
     fig.savefig(FIGURES_DIR / "correlation_heatmap.png", dpi=150, bbox_inches="tight")
     plt.close(fig)
